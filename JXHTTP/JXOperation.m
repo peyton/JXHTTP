@@ -62,7 +62,7 @@
             self.isExecuting = YES;
             [self didChangeValueForKey:@"isExecuting"];
             
-            if (self.continuesInAppBackground)
+            if (self.continuesInAppBackground && !NSClassFromString(@"NSURLSession"))
                 [self startAppBackgroundTask];
         }
     });

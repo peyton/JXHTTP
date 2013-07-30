@@ -102,6 +102,7 @@
     if (NSClassFromString(@"NSURLSession"))
     {
         [self.task cancel];
+        [self.session finishTasksAndInvalidate];
     } else {
         [self.connection unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.connection cancel];
@@ -142,7 +143,10 @@
     @synchronized(self)
     {
         if (!_session)
-            _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
+        {
+            NSURLSessionConfiguration *config = self.continuesInAppBackground ? [NSURLSessionConfiguration backgroundSessionConfiguration:[[NSProcessInfo processInfo] globallyUniqueString]] : [NSURLSessionConfiguration defaultSessionConfiguration];
+            _session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
+        }
         
         return _session;
     }
