@@ -120,6 +120,23 @@
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
 {
+    [self _commonConnectionObject:connection didFailWithError:error];
+}
+
+#pragma mark - <NSURLSessionDelegate>
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error;
+{
+    if (error)
+        [self _commonConnectionObject:session didFailWithError:error];
+    else
+        [self _commonConnectionObjectDidFinishLoading:session];
+}
+
+#pragma mark - <NSURLConnectionDelegate, NSURLSessionDelegate> common
+
+- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
+{
     if ([self isCancelled])
         return;
     
@@ -132,15 +149,57 @@
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)urlResponse
 {
-    if ([self isCancelled])
-        return;
-
-    self.response = urlResponse;
-    
-    [self.outputStream open];
+    [self _commonConnectionObject:connection didReceiveResponse:urlResponse];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data
+{
+    [self _commonConnectionObject:connection didReceiveData:data];
+}
+
+- (void)connection:(NSURLConnection *)connection didSendBodyData:(NSInteger)bytes totalBytesWritten:(NSInteger)total totalBytesExpectedToWrite:(NSInteger)expected
+{
+    [self _commonConnectionObject:connection didSendBodyData:bytes totalBytesSent:total totalBytesExpectedToSend:expected];
+}
+
+- (void)connectionDidFinishLoading:(NSURLConnection *)connection
+{
+    [self _commonConnectionObjectDidFinishLoading:connection];
+}
+
+#pragma mark - <NSURLSessionDataDelegate>
+
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler;
+{
+    BOOL shouldReceive = [self _commonConnectionObject:session didReceiveResponse:response];
+    completionHandler(shouldReceive ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+{
+    [self _commonConnectionObject:session didSendBodyData:bytesSent totalBytesSent:totalBytesSent totalBytesExpectedToSend:totalBytesExpectedToSend];
+}
+
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data;
+{
+    [self _commonConnectionObject:session didReceiveData:data];
+}
+
+#pragma mark - <NSURLConnectionDataDelegate, NSURLSessionDataDelegate> common
+
+- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
+{
+    if ([self isCancelled])
+        return NO;
+    
+    self.response = urlResponse;
+    
+    [self.outputStream open];
+    
+    return YES;
+}
+
+- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
 {
     if ([self isCancelled])
         return;
@@ -153,7 +212,7 @@
     }
 }
 
-- (void)connection:(NSURLConnection *)connection didSendBodyData:(NSInteger)bytes totalBytesWritten:(NSInteger)total totalBytesExpectedToWrite:(NSInteger)expected
+- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
 {
     if ([self isCancelled])
         return;
@@ -161,11 +220,11 @@
     self.bytesUploaded += bytes;
 }
 
-- (void)connectionDidFinishLoading:(NSURLConnection *)connection
+- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
 {
     if ([self isCancelled])
         return;
-
+    
     [self finish];
 }
 

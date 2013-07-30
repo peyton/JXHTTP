@@ -276,18 +276,6 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
 #pragma mark - <NSURLConnectionDelegate>
 
-- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
-{
-    [super connection:connection didFailWithError:error];
-
-    if ([self isCancelled])
-        return;
-
-    self.finishDate = [[NSDate alloc] init];
-
-    [self performDelegateMethod:@selector(httpOperationDidFail:)];
-}
-
 - (BOOL)connectionShouldUseCredentialStorage:(NSURLConnection *)connection
 {
     return self.useCredentialStorage;
@@ -295,18 +283,56 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
 - (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
 {
-    if ([self isCancelled]) {
+    [self _commonConnectionObject:connection didReceiveAuthenticationChallenge:challenge successHandler:^(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential) {
+        [[challenge sender] useCredential:credential forAuthenticationChallenge:challenge];
+    } continueHandler:^(NSURLAuthenticationChallenge *challenge) {
+        [[challenge sender] continueWithoutCredentialForAuthenticationChallenge:challenge];
+    } cancellationHandler:^(NSURLAuthenticationChallenge *challenge) {
         [[challenge sender] cancelAuthenticationChallenge:challenge];
+    }];
+}
+
+#pragma mark - <NSURLSessionDelegate>
+
+- (void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler;
+{
+    [self _commonConnectionObject:session didReceiveAuthenticationChallenge:challenge successHandler:^(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential) {
+        completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+    } continueHandler:^(NSURLAuthenticationChallenge *challenge) {
+        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+    } cancellationHandler:^(NSURLAuthenticationChallenge *challenge) {
+        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+    }];
+}
+
+#pragma mark - <NSURLConnectionDelegate, NSURLSessionDelegate> common
+
+- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
+{
+    [super _commonConnectionObject:obj didFailWithError:error];
+    
+    if ([self isCancelled])
+        return;
+    
+    self.finishDate = [[NSDate alloc] init];
+    
+    [self performDelegateMethod:@selector(httpOperationDidFail:)];
+}
+
+- (void)_commonConnectionObject:(id)obj didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge successHandler:(void (^)(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential))successHandler continueHandler:(void (^)(NSURLAuthenticationChallenge *challenge))continueHandler cancellationHandler:(void (^)(NSURLAuthenticationChallenge *challenge))cancellationHandler;
+{
+    if ([self isCancelled]) {
+        cancellationHandler(challenge);
         return;
     }
-
+    
     self.authenticationChallenge = challenge;
-
+    
     [self performDelegateMethod:@selector(httpOperationWillSendRequestForAuthenticationChallenge:)];
-
+    
     if (!self.credential && self.authenticationChallenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust) {
         BOOL trusted = NO;
-
+        
         if (self.trustAllHosts) {
             trusted = YES;
         } else if (self.trustedHosts) {
@@ -317,145 +343,190 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
                 }
             }
         }
-
+        
         if (trusted)
             self.credential = [NSURLCredential credentialForTrust:self.authenticationChallenge.protectionSpace.serverTrust];
     }
-
+    
     if (!self.credential && self.username && self.password)
         self.credential = [NSURLCredential credentialWithUser:self.username password:self.password persistence:NSURLCredentialPersistenceForSession];
-
+    
     if (self.credential) {
-        [[self.authenticationChallenge sender] useCredential:self.credential forAuthenticationChallenge:self.authenticationChallenge];
+        successHandler(self.authenticationChallenge, self.credential);
         return;
     }
-
-    [[self.authenticationChallenge sender] continueWithoutCredentialForAuthenticationChallenge:self.authenticationChallenge];
+    
+    continueHandler(self.authenticationChallenge);
 }
+
 
 #pragma mark - <NSURLConnectionDataDelegate>
 
-- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)urlResponse
-{
-    [super connection:connection didReceiveResponse:urlResponse];
-
-    if ([self isCancelled])
-        return;
-
-    [self performDelegateMethod:@selector(httpOperationDidReceiveResponse:)];
-}
-
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data
-{
-    [super connection:connection didReceiveData:data];
-
-    if ([self isCancelled])
-        return;
-
-    long long bytesExpected = [self.response expectedContentLength];
-    if (bytesExpected > 0LL && bytesExpected != NSURLResponseUnknownLength)
-        self.downloadProgress = @(self.bytesDownloaded / (float)bytesExpected);
-
-    [self performDelegateMethod:@selector(httpOperationDidReceiveData:)];
-}
-
-- (void)connectionDidFinishLoading:(NSURLConnection *)connection
-{
-    [super connectionDidFinishLoading:connection];
-    
-    if ([self isCancelled])
-        return;
-
-    if ([self.downloadProgress floatValue] != 1.0f)
-        self.downloadProgress = @1.0f;
-
-    if ([self.uploadProgress floatValue] != 1.0f)
-        self.uploadProgress = @1.0f;
-
-    self.finishDate = [[NSDate alloc] init];
-
-    [self performDelegateMethod:@selector(httpOperationDidFinishLoading:)];
-}
-
-- (void)connection:(NSURLConnection *)connection didSendBodyData:(NSInteger)bytes totalBytesWritten:(NSInteger)bytesSent totalBytesExpectedToWrite:(NSInteger)bytesExpected
-{
-    [super connection:connection didSendBodyData:bytes totalBytesWritten:bytesSent totalBytesExpectedToWrite:bytesExpected];
-
-    if ([self isCancelled])
-        return;
-
-    if (bytesExpected > 0LL && bytesExpected != NSURLResponseUnknownLength)
-        self.uploadProgress = @(bytesSent / (float)bytesExpected);
-
-    [self performDelegateMethod:@selector(httpOperationDidSendData:)];
-}
-
 - (NSInputStream *)connection:(NSURLConnection *)connection needNewBodyStream:(NSURLRequest *)request
 {
-    if ([self isCancelled])
-        return nil;
-
-    [self performDelegateMethod:@selector(httpOperationWillNeedNewBodyStream:)];
-
-    return [self.requestBody httpInputStream];
+    return [self _commonConnectionObject:connection needNewBodyStream:request];
 }
 
 - (NSCachedURLResponse *)connection:(NSURLConnection *)connection willCacheResponse:(NSCachedURLResponse *)cachedResponse
 {
+    return [self _commonConnectionObject:connection willCacheResponse:cachedResponse];
+}
+
+- (NSURLRequest *)connection:(NSURLConnection *)connection willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
+{
+    return [self _commonConnectionObject:connection willSendRequest:request redirectResponse:redirectResponse];
+}
+
+#pragma mark - <NSURLSessionDataDelegate>
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task needNewBodyStream:(void (^)(NSInputStream *))completionHandler;
+{
+    NSInputStream *newBodyStream = [self _commonConnectionObject:session needNewBodyStream:nil];
+    
+    completionHandler(newBodyStream);
+}
+
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask willCacheResponse:(NSCachedURLResponse *)proposedResponse completionHandler:(void (^)(NSCachedURLResponse *))completionHandler;
+{
+    NSCachedURLResponse *cachedResponse = [self _commonConnectionObject:session willCacheResponse:proposedResponse];
+    
+    completionHandler(cachedResponse);
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler;
+{
+    NSURLRequest *updatedRequest = [self _commonConnectionObject:session willSendRequest:request redirectResponse:response];
+    if (!updatedRequest)
+        [task cancel];
+    
+    completionHandler(updatedRequest);
+}
+
+#pragma mark - <NSURLConnectionDataDelegate, NSURLSessionDataDelegate> common
+
+- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
+{
+    BOOL shouldContinue = [super _commonConnectionObject:obj didReceiveResponse:urlResponse];
+    
+    if ([self isCancelled])
+        return NO;
+    
+    [self performDelegateMethod:@selector(httpOperationDidReceiveResponse:)];
+    
+    return shouldContinue;
+}
+
+- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
+{
+    [super _commonConnectionObject:obj didReceiveData:data];
+    
+    if ([self isCancelled])
+        return;
+    
+    long long bytesExpected = [self.response expectedContentLength];
+    if (bytesExpected > 0LL && bytesExpected != NSURLResponseUnknownLength)
+        self.downloadProgress = @(self.bytesDownloaded / (float)bytesExpected);
+    
+    [self performDelegateMethod:@selector(httpOperationDidReceiveData:)];
+}
+
+- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
+{
+    [super _commonConnectionObjectDidFinishLoading:obj];
+    
+    if ([self isCancelled])
+        return;
+    
+    if ([self.downloadProgress floatValue] != 1.0f)
+        self.downloadProgress = @1.0f;
+    
+    if ([self.uploadProgress floatValue] != 1.0f)
+        self.uploadProgress = @1.0f;
+    
+    self.finishDate = [[NSDate alloc] init];
+    
+    [self performDelegateMethod:@selector(httpOperationDidFinishLoading:)];
+}
+
+- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+{
+    [super _commonConnectionObject:obj didSendBodyData:bytes totalBytesSent:totalBytesSent totalBytesExpectedToSend:totalBytesExpectedToSend];
+    
+    if ([self isCancelled])
+        return;
+    
+    if (totalBytesExpectedToSend > 0LL && totalBytesExpectedToSend != NSURLResponseUnknownLength)
+        self.uploadProgress = @(totalBytesSent / (float)totalBytesExpectedToSend);
+    
+    [self performDelegateMethod:@selector(httpOperationDidSendData:)];
+}
+
+- (NSInputStream *)_commonConnectionObject:(id)obj needNewBodyStream:(NSURLRequest *)request;
+{
     if ([self isCancelled])
         return nil;
+    
+    [self performDelegateMethod:@selector(httpOperationWillNeedNewBodyStream:)];
+    
+    return [self.requestBody httpInputStream];
+}
 
+- (NSCachedURLResponse *)_commonConnectionObject:(id)obj willCacheResponse:(NSCachedURLResponse *)cachedResponse;
+{
+    if ([self isCancelled])
+        return nil;
+    
     BOOL delegateResponds = [self.delegate respondsToSelector:@selector(httpOperation:willCacheResponse:)];
     BOOL requestBodyResponds = [self.requestBody respondsToSelector:@selector(httpOperation:willCacheResponse:)];
-
+    
     if (!delegateResponds && !requestBodyResponds && !self.willCacheResponseBlock)
         return cachedResponse;
-
+    
     __block NSCachedURLResponse *modifiedReponse = nil;
-
+    
     if ([self.delegate respondsToSelector:@selector(httpOperation:willCacheResponse:)])
         modifiedReponse = [self.delegate httpOperation:self willCacheResponse:cachedResponse];
-
+    
     if ([self.requestBody respondsToSelector:@selector(httpOperation:willCacheResponse:)])
         modifiedReponse = [self.requestBody httpOperation:self willCacheResponse:cachedResponse];
-
+    
     if (self.willCacheResponseBlock) {
         dispatch_sync(self.performsBlocksOnMainQueue ? dispatch_get_main_queue() : self.blockQueue, ^{
             modifiedReponse = self.willCacheResponseBlock(self, cachedResponse);
         });
     }
-
+    
     return [self isCancelled] ? nil : modifiedReponse;
 }
 
-- (NSURLRequest *)connection:(NSURLConnection *)connection willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
+- (NSURLRequest *)_commonConnectionObject:(id)obj willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
 {
     if ([self isCancelled])
         return nil;
-
+    
     BOOL delegateResponds = [self.delegate respondsToSelector:@selector(httpOperation:willSendRequest:redirectResponse:)];
     BOOL requestBodyResponds = [self.requestBody respondsToSelector:@selector(httpOperation:willSendRequest:redirectResponse:)];
-
+    
     if (!delegateResponds && !requestBodyResponds && !self.willSendRequestRedirectBlock)
         return request;
-
+    
     __block NSURLRequest *modifiedRequest = nil;
-
+    
     if (delegateResponds)
         modifiedRequest = [self.delegate httpOperation:self willSendRequest:request redirectResponse:redirectResponse];
-
+    
     if (requestBodyResponds)
         modifiedRequest = [self.requestBody httpOperation:self willSendRequest:request redirectResponse:redirectResponse];
-
+    
     if (self.willSendRequestRedirectBlock) {
         dispatch_sync(self.performsBlocksOnMainQueue ? dispatch_get_main_queue() : self.blockQueue, ^{
             modifiedRequest = self.willSendRequestRedirectBlock(self, request, redirectResponse);
         });
     }
-
+    
     if (!modifiedRequest && !redirectResponse)
         [self cancel];
-
+    
     return [self isCancelled] ? nil : modifiedRequest;
 }
 

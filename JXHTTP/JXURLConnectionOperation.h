@@ -31,7 +31,7 @@
 
 #import "JXOperation.h"
 
-@interface JXURLConnectionOperation : JXOperation <NSURLConnectionDelegate, NSURLConnectionDataDelegate>
+@interface JXURLConnectionOperation : JXOperation <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSURLSessionDelegate, NSURLSessionDataDelegate>
 
 /// @name Connection
 
@@ -101,5 +101,16 @@
  @returns An operation.
  */
 - (instancetype)initWithURL:(NSURL *)url;
+
+@end
+
+@interface JXURLConnectionOperation (Private)
+
+- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
+
+- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
+- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
+- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
 
 @end
