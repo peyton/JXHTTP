@@ -2,6 +2,9 @@
 #import "JXHTTPOperationQueue.h"
 
 @interface JXURLConnectionOperation ()
+{
+    NSURLSession *_session;
+}
 @property (strong) NSURLConnection *connection;
 @property (strong, readonly) NSURLSession *session;
 @property (strong) NSURLSessionTask *task;
@@ -136,13 +139,13 @@
 
 - (NSURLSession *)session;
 {
-    static NSURLSession *_session;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
-    });
-    
-    return _session;
+    @synchronized(self)
+    {
+        if (!_session)
+            _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
+        
+        return _session;
+    }
 }
 
 #pragma mark - <NSURLConnectionDelegate>
@@ -156,6 +159,9 @@
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error;
 {
+    if (error.code == NSURLErrorCancelled)
+        return;
+    
     if (error)
         [self _commonConnectionObject:session didFailWithError:error];
     else
