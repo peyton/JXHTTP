@@ -2,6 +2,8 @@
 
 @interface JXURLConnectionOperation ()
 @property (strong) NSURLConnection *connection;
+@property (strong) NSURLSession *session;
+@property (weak) NSURLSessionTask *task;
 @property (strong) NSMutableURLRequest *request;
 @property (strong) NSURLResponse *response;
 @property (strong) NSError *error;
@@ -73,9 +75,16 @@
 
     [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
 
-    self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
-    [self.connection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-    [self.connection start];
+    if (NSClassFromString(@"NSURLSession"))
+    {
+        NSURLSessionTask *task = [[[self class] sharedSession] dataTaskWithRequest:self.request];
+        self.task = task;
+        [task resume];
+    } else {
+        self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
+        [self.connection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        [self.connection start];
+    }
 }
 
 - (void)stopConnection
@@ -85,8 +94,13 @@
         return;
     }
 
-    [self.connection unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-    [self.connection cancel];
+    if (NSClassFromString(@"NSURLSession"))
+    {
+        [self.task cancel];
+    } else {
+        [self.connection unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        [self.connection cancel];
+    }
 
     [self.outputStream removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     [self.outputStream close];
@@ -114,6 +128,19 @@
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
         }
     }
+}
+
+#pragma mark - NSURLSession
+
++ (NSURLSession *)sharedSession;
+{
+    static NSURLSession *_session;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    });
+    
+    return _session;
 }
 
 #pragma mark - <NSURLConnectionDelegate>
