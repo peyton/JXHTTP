@@ -1,9 +1,10 @@
 #import "JXURLConnectionOperation.h"
+#import "JXHTTPOperationQueue.h"
 
 @interface JXURLConnectionOperation ()
 @property (strong) NSURLConnection *connection;
-@property (strong) NSURLSession *session;
-@property (weak) NSURLSessionTask *task;
+@property (strong, readonly) NSURLSession *session;
+@property (strong) NSURLSessionTask *task;
 @property (strong) NSMutableURLRequest *request;
 @property (strong) NSURLResponse *response;
 @property (strong) NSError *error;
@@ -12,6 +13,7 @@
 @end
 
 @implementation JXURLConnectionOperation
+@dynamic session;
 
 #pragma mark - Initialization
 
@@ -77,7 +79,7 @@
 
     if (NSClassFromString(@"NSURLSession"))
     {
-        NSURLSessionTask *task = [[[self class] sharedSession] dataTaskWithRequest:self.request];
+        NSURLSessionTask *task = [[self session] dataTaskWithRequest:self.request];
         self.task = task;
         [task resume];
     } else {
@@ -132,12 +134,12 @@
 
 #pragma mark - NSURLSession
 
-+ (NSURLSession *)sharedSession;
+- (NSURLSession *)session;
 {
     static NSURLSession *_session;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
     });
     
     return _session;
