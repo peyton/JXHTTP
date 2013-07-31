@@ -18,8 +18,6 @@
 
 @property (atomic, strong) NSMapTable *tasksToOperations;
 
-@property (atomic, strong) void (^backgroundCompletionHandler)();
-
 @end
 
 @implementation JXURLSession
@@ -57,14 +55,6 @@
 - (void)registerTask:(NSURLSessionTask *)task forDelegate:(id<JXURLCommonConnectionDelegate>)operation;
 {
     [self.tasksToOperations setObject:operation forKey:task];
-}
-
-+ (instancetype)sessionForBackgroundURLSessionIdentifier:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
-{
-    JXURLSession *session = [self sessionWithConfiguration:[NSURLSessionConfiguration backgroundSessionConfiguration:identifier] type:JXURLSessionTypeBackground queue:[JXHTTPOperationQueue sharedQueue]];
-    session.backgroundCompletionHandler = completionHandler;
-    
-    return session;
 }
 
 - (void)_callCompletionHandlerIfFinished;
