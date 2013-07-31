@@ -14,7 +14,6 @@
 @interface JXURLSession ()
 
 @property (atomic, strong) NSURLSession *backingSession;
-@property (atomic, assign) JXURLSessionType type;
 
 @property (atomic, strong) NSMapTable *tasksToOperations;
 
@@ -24,12 +23,10 @@
 
 #pragma mark - Lifecycle
 
-- (id)initWithConfiguration:(NSURLSessionConfiguration *)configuration type:(JXURLSessionType)type queue:(NSOperationQueue *)queue;
+- (id)initWithConfiguration:(NSURLSessionConfiguration *)configuration queue:(NSOperationQueue *)queue;
 {
     if (!(self = [self init]))
         return nil;
-    
-    self.type = type;
     
     // Create backing session
     self.backingSession = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:queue];
@@ -40,9 +37,9 @@
     return self;
 }
 
-+ (instancetype)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration type:(JXURLSessionType)type queue:(NSOperationQueue *)queue;
++ (instancetype)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration queue:(NSOperationQueue *)queue;
 {
-    return [[self alloc] initWithConfiguration:configuration type:type queue:queue];
+    return [[self alloc] initWithConfiguration:configuration queue:queue];
 }
 
 - (void)dealloc;
@@ -59,7 +56,8 @@
 
 - (void)_callCompletionHandlerIfFinished;
 {
-    if (self.type != JXURLSessionTypeBackground)
+    // Completion handler only called if this is a background session
+    if (!self.backingSession.configuration.identifier)
         return;
     
     [self.backingSession getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
