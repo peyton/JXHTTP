@@ -9,11 +9,16 @@
 #import "JXURLSession.h"
 
 #import "JXURLConnectionOperation.h"
+#import "JXHTTPOperationQueue.h"
 
 @interface JXURLSession ()
 
 @property (atomic, strong) NSURLSession *backingSession;
+@property (atomic, assign) JXURLSessionType type;
+
 @property (atomic, strong) NSMapTable *tasksToOperations;
+
+@property (atomic, strong) void (^backgroundCompletionHandler)();
 
 @end
 
@@ -21,10 +26,12 @@
 
 #pragma mark - Lifecycle
 
-- (id)initWithConfiguration:(NSURLSessionConfiguration *)configuration queue:(NSOperationQueue *)queue;
+- (id)initWithConfiguration:(NSURLSessionConfiguration *)configuration type:(JXURLSessionType)type queue:(NSOperationQueue *)queue;
 {
     if (!(self = [self init]))
         return nil;
+    
+    self.type = type;
     
     // Create backing session
     self.backingSession = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:queue];
@@ -35,9 +42,9 @@
     return self;
 }
 
-+ (instancetype)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration queue:(NSOperationQueue *)queue;
++ (instancetype)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration type:(JXURLSessionType)type queue:(NSOperationQueue *)queue;
 {
-    return [[self alloc] initWithConfiguration:configuration queue:queue];
+    return [[self alloc] initWithConfiguration:configuration type:type queue:queue];
 }
 
 - (void)dealloc;
@@ -52,14 +59,39 @@
     [self.tasksToOperations setObject:operation forKey:task];
 }
 
++ (instancetype)sessionForBackgroundURLSessionIdentifier:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
+{
+    JXURLSession *session = [self sessionWithConfiguration:[NSURLSessionConfiguration backgroundSessionConfiguration:identifier] type:JXURLSessionTypeBackground queue:[JXHTTPOperationQueue sharedQueue]];
+    session.backgroundCompletionHandler = completionHandler;
+    
+    return session;
+}
+
+- (void)_callCompletionHandlerIfFinished;
+{
+    if (self.type != JXURLSessionTypeBackground)
+        return;
+    
+    [self.backingSession getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
+        if ([dataTasks count] || [uploadTasks count] || [downloadTasks count])
+            return;
+        
+        if (!self.backgroundCompletionHandler)
+            return;
+        
+        self.backgroundCompletionHandler();
+        self.backgroundCompletionHandler = nil;
+    }];
+}
+
 #pragma mark - <NSURLSessionTaskDelegate>
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error;
 {
-    if (error.code == NSURLErrorCancelled)
-        return;
-    
     id<JXURLCommonConnectionDelegate> operation = [self.tasksToOperations objectForKey:task];
+
+    if (error.code == NSURLErrorCancelled)
+        goto complete;
     
     if (error)
     {
@@ -69,6 +101,9 @@
         if ([operation respondsToSelector:@selector(commonConnectionObjectDidFinishLoading:)])
             [operation commonConnectionObjectDidFinishLoading:task];
     }
+
+complete:
+    [self _callCompletionHandlerIfFinished];
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
@@ -153,6 +188,5 @@
     
     completionHandler(cachedResponse);
 }
-
 
 @end
