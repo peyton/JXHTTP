@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9CB4AEA617A983F200E5AD24 /* JXURLSession.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB4AEA517A983F200E5AD24 /* JXURLSession.m */; };
 		D04867BD16EE75E000473908 /* JXHTTPDataBody.m in Sources */ = {isa = PBXBuildFile; fileRef = D04867A516EE75E000473908 /* JXHTTPDataBody.m */; };
 		D04867BE16EE75E000473908 /* JXHTTPFileBody.m in Sources */ = {isa = PBXBuildFile; fileRef = D04867A716EE75E000473908 /* JXHTTPFileBody.m */; };
 		D04867BF16EE75E000473908 /* JXHTTPFormEncodedBody.m in Sources */ = {isa = PBXBuildFile; fileRef = D04867A916EE75E000473908 /* JXHTTPFormEncodedBody.m */; };
@@ -27,6 +28,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9CB4AEA417A983F200E5AD24 /* JXURLSession.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXURLSession.h; sourceTree = "<group>"; };
+		9CB4AEA517A983F200E5AD24 /* JXURLSession.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JXURLSession.m; sourceTree = "<group>"; };
 		D04867A316EE75E000473908 /* JXHTTP.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXHTTP.h; sourceTree = "<group>"; };
 		D04867A416EE75E000473908 /* JXHTTPDataBody.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXHTTPDataBody.h; sourceTree = "<group>"; };
 		D04867A516EE75E000473908 /* JXHTTPDataBody.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JXHTTPDataBody.m; sourceTree = "<group>"; };
@@ -109,6 +112,8 @@
 				D04867BA16EE75E000473908 /* JXURLConnectionOperation.m */,
 				D04867BB16EE75E000473908 /* JXURLEncoding.h */,
 				D04867BC16EE75E000473908 /* JXURLEncoding.m */,
+				9CB4AEA417A983F200E5AD24 /* JXURLSession.h */,
+				9CB4AEA517A983F200E5AD24 /* JXURLSession.m */,
 			);
 			name = JXHTTP;
 			path = ../../JXHTTP;
@@ -230,6 +235,7 @@
 				D0DD860116EE75A000B293D5 /* JXAppDelegate.m in Sources */,
 				D04867BD16EE75E000473908 /* JXHTTPDataBody.m in Sources */,
 				D04867BE16EE75E000473908 /* JXHTTPFileBody.m in Sources */,
+				9CB4AEA617A983F200E5AD24 /* JXURLSession.m in Sources */,
 				D04867BF16EE75E000473908 /* JXHTTPFormEncodedBody.m in Sources */,
 				D04867C016EE75E000473908 /* JXHTTPJSONBody.m in Sources */,
 				D04867C116EE75E000473908 /* JXHTTPMultipartBody.m in Sources */,

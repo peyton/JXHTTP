@@ -1,12 +1,14 @@
 #import "JXURLConnectionOperation.h"
 #import "JXHTTPOperationQueue.h"
+#import "JXURLSession.h"
 
 @interface JXURLConnectionOperation ()
 {
-    NSURLSession *_session;
+    long long _bytesDownloaded;
+    long long _bytesUploaded;
 }
+
 @property (strong) NSURLConnection *connection;
-@property (strong, readonly) NSURLSession *session;
 @property (strong) NSURLSessionTask *task;
 @property (strong) NSMutableURLRequest *request;
 @property (strong) NSURLResponse *response;
@@ -16,7 +18,7 @@
 @end
 
 @implementation JXURLConnectionOperation
-@dynamic session;
+@dynamic bytesDownloaded, bytesUploaded;
 
 #pragma mark - Initialization
 
@@ -80,10 +82,11 @@
 
     [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
 
-    if (NSClassFromString(@"NSURLSession"))
+    if (self.session)
     {
-        NSURLSessionTask *task = [[self session] dataTaskWithRequest:self.request];
+        NSURLSessionTask *task = [self.session.backingSession dataTaskWithRequest:self.request];
         self.task = task;
+        [self.session registerTask:task forDelegate:self];
         [task resume];
     } else {
         self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
@@ -102,7 +105,7 @@
     if (NSClassFromString(@"NSURLSession"))
     {
         [self.task cancel];
-        [self.session finishTasksAndInvalidate];
+        self.task = nil;
     } else {
         [self.connection unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.connection cancel];
@@ -136,45 +139,16 @@
     }
 }
 
-#pragma mark - NSURLSession
-
-- (NSURLSession *)session;
-{
-    @synchronized(self)
-    {
-        if (!_session)
-        {
-            NSURLSessionConfiguration *config = self.continuesInAppBackground ? [NSURLSessionConfiguration backgroundSessionConfiguration:[[NSProcessInfo processInfo] globallyUniqueString]] : [NSURLSessionConfiguration defaultSessionConfiguration];
-            _session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[JXHTTPOperationQueue sharedQueue]];
-        }
-        
-        return _session;
-    }
-}
-
 #pragma mark - <NSURLConnectionDelegate>
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
 {
-    [self _commonConnectionObject:connection didFailWithError:error];
-}
-
-#pragma mark - <NSURLSessionDelegate>
-
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error;
-{
-    if (error.code == NSURLErrorCancelled)
-        return;
-    
-    if (error)
-        [self _commonConnectionObject:session didFailWithError:error];
-    else
-        [self _commonConnectionObjectDidFinishLoading:session];
+    [self commonConnectionObject:connection didFailWithError:error];
 }
 
 #pragma mark - <NSURLConnectionDelegate, NSURLSessionDelegate> common
 
-- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
+- (void)commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
 {
     if ([self isCancelled])
         return;
@@ -188,45 +162,27 @@
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)urlResponse
 {
-    [self _commonConnectionObject:connection didReceiveResponse:urlResponse];
+    [self commonConnectionObject:connection didReceiveResponse:urlResponse];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data
 {
-    [self _commonConnectionObject:connection didReceiveData:data];
+    [self commonConnectionObject:connection didReceiveData:data];
 }
 
 - (void)connection:(NSURLConnection *)connection didSendBodyData:(NSInteger)bytes totalBytesWritten:(NSInteger)total totalBytesExpectedToWrite:(NSInteger)expected
 {
-    [self _commonConnectionObject:connection didSendBodyData:bytes totalBytesSent:total totalBytesExpectedToSend:expected];
+    [self commonConnectionObject:connection didSendBodyData:bytes totalBytesSent:total totalBytesExpectedToSend:expected];
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection
 {
-    [self _commonConnectionObjectDidFinishLoading:connection];
-}
-
-#pragma mark - <NSURLSessionDataDelegate>
-
-- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler;
-{
-    BOOL shouldReceive = [self _commonConnectionObject:session didReceiveResponse:response];
-    completionHandler(shouldReceive ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
-}
-
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
-{
-    [self _commonConnectionObject:session didSendBodyData:bytesSent totalBytesSent:totalBytesSent totalBytesExpectedToSend:totalBytesExpectedToSend];
-}
-
-- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data;
-{
-    [self _commonConnectionObject:session didReceiveData:data];
+    [self commonConnectionObjectDidFinishLoading:connection];
 }
 
 #pragma mark - <NSURLConnectionDataDelegate, NSURLSessionDataDelegate> common
 
-- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
+- (BOOL)commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
 {
     if ([self isCancelled])
         return NO;
@@ -238,7 +194,7 @@
     return YES;
 }
 
-- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
+- (void)commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
 {
     if ([self isCancelled])
         return;
@@ -251,7 +207,7 @@
     }
 }
 
-- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+- (void)commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
 {
     if ([self isCancelled])
         return;
@@ -259,12 +215,52 @@
     self.bytesUploaded += bytes;
 }
 
-- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
+- (void)commonConnectionObjectDidFinishLoading:(id)obj;
 {
     if ([self isCancelled])
         return;
     
     [self finish];
+}
+
+#pragma mark - Getters and setters
+
+- (long long)bytesDownloaded;
+{
+    @synchronized(self)
+    {
+        if (self.task)
+            return self.task.countOfBytesReceived;
+        else
+            return _bytesDownloaded;
+    }
+}
+
+- (void)setBytesDownloaded:(long long)bytesDownloaded;
+{
+    @synchronized(self)
+    {
+        _bytesDownloaded = bytesDownloaded;
+    }
+}
+
+- (long long)bytesUploaded;
+{
+    @synchronized(self)
+    {
+        if (self.task)
+            return self.task.countOfBytesSent;
+        else
+            return _bytesUploaded;
+    }
+}
+
+- (void)setBytesUploaded:(long long)bytesUploaded;
+{
+    @synchronized(self)
+    {
+        _bytesUploaded = bytesUploaded;
+    }
 }
 
 @end

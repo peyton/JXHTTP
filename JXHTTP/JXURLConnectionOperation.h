@@ -31,7 +31,33 @@
 
 #import "JXOperation.h"
 
-@interface JXURLConnectionOperation : JXOperation <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSURLSessionDelegate, NSURLSessionDataDelegate>
+@class JXURLSession;
+
+@protocol JXURLCommonConnectionDelegate <NSObject>
+
+@optional
+- (void)commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
+- (BOOL)commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
+- (void)commonConnectionObjectDidFinishLoading:(id)obj;
+
+- (void)commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
+
+- (NSInputStream *)commonConnectionObject:(id)obj needNewBodyStream:(NSURLRequest *)request;
+
+- (void)commonConnectionObject:(id)obj didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge successHandler:(void (^)(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential))successHandler continueHandler:(void (^)(NSURLAuthenticationChallenge *challenge))continueHandler cancellationHandler:(void (^)(NSURLAuthenticationChallenge *challenge))cancellationHandler;
+- (NSURLRequest *)commonConnectionObject:(id)obj willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse;
+
+@end
+
+@protocol JXURLCommonConnectionDataDelegate <JXURLCommonConnectionDelegate>
+
+@optional
+- (NSCachedURLResponse *)commonConnectionObject:(id)obj willCacheResponse:(NSCachedURLResponse *)cachedResponse;
+- (void)commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+
+@end
+
+@interface JXURLConnectionOperation : JXOperation <JXURLCommonConnectionDelegate, JXURLCommonConnectionDataDelegate, NSURLConnectionDelegate, NSURLConnectionDataDelegate>
 
 /// @name Connection
 
@@ -82,6 +108,10 @@
  */
 @property (assign, readonly) long long bytesUploaded;
 
+@property (weak) JXURLSession *session;
+
+@property (strong, readonly) NSURLSessionTask *task;
+
 /// @name Initialization
 
 /**
@@ -101,16 +131,5 @@
  @returns An operation.
  */
 - (instancetype)initWithURL:(NSURL *)url;
-
-@end
-
-@interface JXURLConnectionOperation (Private)
-
-- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
-
-- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
-- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
-- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
-- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
 
 @end

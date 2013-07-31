@@ -283,7 +283,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
 - (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
 {
-    [self _commonConnectionObject:connection didReceiveAuthenticationChallenge:challenge successHandler:^(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential) {
+    [self commonConnectionObject:connection didReceiveAuthenticationChallenge:challenge successHandler:^(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential) {
         [[challenge sender] useCredential:credential forAuthenticationChallenge:challenge];
     } continueHandler:^(NSURLAuthenticationChallenge *challenge) {
         [[challenge sender] continueWithoutCredentialForAuthenticationChallenge:challenge];
@@ -292,24 +292,11 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     }];
 }
 
-#pragma mark - <NSURLSessionDelegate>
+#pragma mark - <JXURLCommonConnectionDelegate>
 
-- (void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *))completionHandler;
+- (void)commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
 {
-    [self _commonConnectionObject:session didReceiveAuthenticationChallenge:challenge successHandler:^(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential) {
-        completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
-    } continueHandler:^(NSURLAuthenticationChallenge *challenge) {
-        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
-    } cancellationHandler:^(NSURLAuthenticationChallenge *challenge) {
-        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
-    }];
-}
-
-#pragma mark - <NSURLConnectionDelegate, NSURLSessionDelegate> common
-
-- (void)_commonConnectionObject:(id)obj didFailWithError:(NSError *)error;
-{
-    [super _commonConnectionObject:obj didFailWithError:error];
+    [super commonConnectionObject:obj didFailWithError:error];
     
     if ([self isCancelled])
         return;
@@ -319,7 +306,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     [self performDelegateMethod:@selector(httpOperationDidFail:)];
 }
 
-- (void)_commonConnectionObject:(id)obj didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge successHandler:(void (^)(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential))successHandler continueHandler:(void (^)(NSURLAuthenticationChallenge *challenge))continueHandler cancellationHandler:(void (^)(NSURLAuthenticationChallenge *challenge))cancellationHandler;
+- (void)commonConnectionObject:(id)obj didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge successHandler:(void (^)(NSURLAuthenticationChallenge *challenge, NSURLCredential *credential))successHandler continueHandler:(void (^)(NSURLAuthenticationChallenge *challenge))continueHandler cancellationHandler:(void (^)(NSURLAuthenticationChallenge *challenge))cancellationHandler;
 {
     if ([self isCancelled]) {
         cancellationHandler(challenge);
@@ -364,49 +351,24 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
 - (NSInputStream *)connection:(NSURLConnection *)connection needNewBodyStream:(NSURLRequest *)request
 {
-    return [self _commonConnectionObject:connection needNewBodyStream:request];
+    return [self commonConnectionObject:connection needNewBodyStream:request];
 }
 
 - (NSCachedURLResponse *)connection:(NSURLConnection *)connection willCacheResponse:(NSCachedURLResponse *)cachedResponse
 {
-    return [self _commonConnectionObject:connection willCacheResponse:cachedResponse];
+    return [self commonConnectionObject:connection willCacheResponse:cachedResponse];
 }
 
 - (NSURLRequest *)connection:(NSURLConnection *)connection willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
 {
-    return [self _commonConnectionObject:connection willSendRequest:request redirectResponse:redirectResponse];
+    return [self commonConnectionObject:connection willSendRequest:request redirectResponse:redirectResponse];
 }
 
-#pragma mark - <NSURLSessionDataDelegate>
+#pragma mark - <JXURLCommonConnectionDelegate> common
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task needNewBodyStream:(void (^)(NSInputStream *))completionHandler;
+- (BOOL)commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
 {
-    NSInputStream *newBodyStream = [self _commonConnectionObject:session needNewBodyStream:nil];
-    
-    completionHandler(newBodyStream);
-}
-
-- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask willCacheResponse:(NSCachedURLResponse *)proposedResponse completionHandler:(void (^)(NSCachedURLResponse *))completionHandler;
-{
-    NSCachedURLResponse *cachedResponse = [self _commonConnectionObject:session willCacheResponse:proposedResponse];
-    
-    completionHandler(cachedResponse);
-}
-
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler;
-{
-    NSURLRequest *updatedRequest = [self _commonConnectionObject:session willSendRequest:request redirectResponse:response];
-    if (!updatedRequest)
-        [task cancel];
-    
-    completionHandler(updatedRequest);
-}
-
-#pragma mark - <NSURLConnectionDataDelegate, NSURLSessionDataDelegate> common
-
-- (BOOL)_commonConnectionObject:(id)obj didReceiveResponse:(NSURLResponse *)urlResponse;
-{
-    BOOL shouldContinue = [super _commonConnectionObject:obj didReceiveResponse:urlResponse];
+    BOOL shouldContinue = [super commonConnectionObject:obj didReceiveResponse:urlResponse];
     
     if ([self isCancelled])
         return NO;
@@ -416,9 +378,9 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     return shouldContinue;
 }
 
-- (void)_commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
+- (void)commonConnectionObject:(id)obj didReceiveData:(NSData *)data;
 {
-    [super _commonConnectionObject:obj didReceiveData:data];
+    [super commonConnectionObject:obj didReceiveData:data];
     
     if ([self isCancelled])
         return;
@@ -430,9 +392,9 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     [self performDelegateMethod:@selector(httpOperationDidReceiveData:)];
 }
 
-- (void)_commonConnectionObjectDidFinishLoading:(id)obj;
+- (void)commonConnectionObjectDidFinishLoading:(id)obj;
 {
-    [super _commonConnectionObjectDidFinishLoading:obj];
+    [super commonConnectionObjectDidFinishLoading:obj];
     
     if ([self isCancelled])
         return;
@@ -448,9 +410,9 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     [self performDelegateMethod:@selector(httpOperationDidFinishLoading:)];
 }
 
-- (void)_commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
+- (void)commonConnectionObject:(id)obj didSendBodyData:(NSInteger)bytes totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
 {
-    [super _commonConnectionObject:obj didSendBodyData:bytes totalBytesSent:totalBytesSent totalBytesExpectedToSend:totalBytesExpectedToSend];
+    [super commonConnectionObject:obj didSendBodyData:bytes totalBytesSent:totalBytesSent totalBytesExpectedToSend:totalBytesExpectedToSend];
     
     if ([self isCancelled])
         return;
@@ -461,7 +423,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     [self performDelegateMethod:@selector(httpOperationDidSendData:)];
 }
 
-- (NSInputStream *)_commonConnectionObject:(id)obj needNewBodyStream:(NSURLRequest *)request;
+- (NSInputStream *)commonConnectionObject:(id)obj needNewBodyStream:(NSURLRequest *)request;
 {
     if ([self isCancelled])
         return nil;
@@ -471,7 +433,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     return [self.requestBody httpInputStream];
 }
 
-- (NSCachedURLResponse *)_commonConnectionObject:(id)obj willCacheResponse:(NSCachedURLResponse *)cachedResponse;
+- (NSCachedURLResponse *)commonConnectionObject:(id)obj willCacheResponse:(NSCachedURLResponse *)cachedResponse;
 {
     if ([self isCancelled])
         return nil;
@@ -499,7 +461,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
     return [self isCancelled] ? nil : modifiedReponse;
 }
 
-- (NSURLRequest *)_commonConnectionObject:(id)obj willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
+- (NSURLRequest *)commonConnectionObject:(id)obj willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)redirectResponse
 {
     if ([self isCancelled])
         return nil;
