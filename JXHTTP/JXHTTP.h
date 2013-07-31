@@ -5,6 +5,7 @@
 #import "JXURLConnectionOperation.h"
 #import "JXHTTPOperation.h"
 #import "JXHTTPOperationQueue.h"
+#import "JXURLSession.h"
 
 // Protocol
 #import "JXHTTPRequestBody.h"
