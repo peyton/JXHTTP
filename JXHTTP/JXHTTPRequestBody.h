@@ -36,4 +36,5 @@
  @returns An integer.
  */
 - (long long)httpContentLength;
+
 @end

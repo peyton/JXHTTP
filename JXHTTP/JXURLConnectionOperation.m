@@ -6,6 +6,7 @@
 {
     long long _bytesDownloaded;
     long long _bytesUploaded;
+    BOOL _continuesInAppBackground;
 }
 
 @property (strong) NSURLConnection *connection;
@@ -84,7 +85,11 @@
 
     if (self.session)
     {
-        NSURLSessionTask *task = [self.session.backingSession dataTaskWithRequest:self.request];
+        NSURLSessionTask *task;
+        if (self.session.isBackgroundSession)
+            task = [self.session.backingSession uploadTaskWithStreamedRequest:self.request];
+        else
+            task = [self.session.backingSession dataTaskWithRequest:self.request];
         self.task = task;
         [self.session registerTask:task forDelegate:self];
         [task resume];
@@ -260,6 +265,25 @@
     @synchronized(self)
     {
         _bytesUploaded = bytesUploaded;
+    }
+}
+
+- (BOOL)continuesInAppBackground;
+{
+    @synchronized(self)
+    {
+        if (self.session.isBackgroundSession)
+            return NO;
+        
+        return _continuesInAppBackground;
+    }
+}
+
+- (void)setContinuesInAppBackground:(BOOL)continuesInAppBackground;
+{
+    @synchronized(self)
+    {
+        _continuesInAppBackground = continuesInAppBackground;
     }
 }
 

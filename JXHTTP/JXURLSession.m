@@ -72,6 +72,13 @@
     }];
 }
 
+#pragma mark - Getters and setters
+
+- (BOOL)isBackgroundSession;
+{
+    return self.backingSession.configuration.identifier != nil;
+}
+
 #pragma mark - <NSURLSessionTaskDelegate>
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error;

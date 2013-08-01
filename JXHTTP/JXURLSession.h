@@ -11,6 +11,7 @@
 @interface JXURLSession : NSObject <NSURLSessionDelegate, NSURLSessionDataDelegate, NSURLSessionTaskDelegate>
 
 @property (atomic, strong, readonly) NSURLSession *backingSession;
+@property (atomic, assign, readonly, getter=isBackgroundSession) BOOL backgroundSession;
 @property (atomic, strong) void (^backgroundCompletionHandler)();
 
 - (id)initWithConfiguration:(NSURLSessionConfiguration *)configuration queue:(NSOperationQueue *)queue;
