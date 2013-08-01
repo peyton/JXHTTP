@@ -88,8 +88,13 @@
         
         if (self.session.isBackgroundSession)
         {
+            // Write the request body to a file in preparation for uploading.
+            dispatch_queue_t callback_queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+            
             NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSProcessInfo processInfo].globallyUniqueString];
-            dispatch_io_t fd = dispatch_io_create_with_path(DISPATCH_IO_STREAM, [path fileSystemRepresentation], O_WRONLY, 0, NULL, NULL);
+            dispatch_io_t fd = dispatch_io_create_with_path(DISPATCH_IO_STREAM, [path UTF8String], O_WRONLY, 0, callback_queue, ^(int error){
+                
+            });
             
             NSInputStream *bodyStream = self.request.HTTPBodyStream;
             dispatch_data_t data = NULL;
@@ -99,7 +104,7 @@
                 NSUInteger size;
                 if ([bodyStream getBuffer:&buffer length:&size])
                 {
-                    dispatch_data_t newData = dispatch_data_create(buffer, size, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                    dispatch_data_t newData = dispatch_data_create(buffer, size, callback_queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                     if (data)
                         data = dispatch_data_create_concat(data, newData);
                     else
@@ -109,20 +114,21 @@
             
             if (data)
             {
-                dispatch_write(fd, data, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(dispatch_data_t data, int error) {
+                dispatch_write((int)fd, data, callback_queue, ^(dispatch_data_t data, int error) {
                     if (data != NULL)
                     {
                         NSLog(@"error %u writing HTTP body", error);
                         return;
                     }
                     
+                    dispatch_io_close(fd, 0);
+                    
                     self.task = [self.session.backingSession uploadTaskWithRequest:self.request fromFile:[NSURL fileURLWithPath:path isDirectory:NO]];
                     [self _startTask];
                     
                 });
             }
-        }
-        else {
+        } else {
             self.task = [self.session.backingSession dataTaskWithRequest:self.request];
             [self _startTask];
         }
