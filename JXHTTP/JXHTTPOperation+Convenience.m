@@ -147,7 +147,7 @@
 - (id)responseJSON
 {
     NSData *data = [self responseData];
-    if (!data)
+    if (!data || !data.length)
         return nil;
 
     NSError *error = nil;

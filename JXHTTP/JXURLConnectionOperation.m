@@ -85,49 +85,57 @@
 
     if (self.session)
     {
-        
         if (self.session.isBackgroundSession)
         {
             // Write the request body to a file in preparation for uploading.
             dispatch_queue_t callback_queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
             
             NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSProcessInfo processInfo].globallyUniqueString];
+            [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
             dispatch_io_t fd = dispatch_io_create_with_path(DISPATCH_IO_STREAM, [path UTF8String], O_WRONLY, 0, callback_queue, ^(int error){
                 
             });
             
             NSInputStream *bodyStream = self.request.HTTPBodyStream;
-            dispatch_data_t data = NULL;
-            while ([bodyStream hasBytesAvailable])
-            {
-                uint8_t *buffer;
-                NSUInteger size;
-                if ([bodyStream getBuffer:&buffer length:&size])
-                {
-                    dispatch_data_t newData = dispatch_data_create(buffer, size, callback_queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-                    if (data)
-                        data = dispatch_data_create_concat(data, newData);
-                    else
-                        data = newData;
-                }
-            }
+            self.request.HTTPBodyStream = nil;
             
-            if (data)
-            {
-                dispatch_write((int)fd, data, callback_queue, ^(dispatch_data_t data, int error) {
-                    if (data != NULL)
-                    {
-                        NSLog(@"error %u writing HTTP body", error);
-                        return;
-                    }
-                    
+            // Size of a page
+            const long buffer_size = sysconf(_SC_PAGE_SIZE);
+            
+            uint8_t *buffer =
+            (uint8_t *)malloc(sizeof(uint8_t) * buffer_size);
+            __block NSUInteger size;
+            [bodyStream open];
+            
+            __block void (^readStream)(id k);
+            
+            readStream = ^(id k){
+                size = [bodyStream read:buffer maxLength:buffer_size];
+                if (size)
+                {
+                    dispatch_data_t data = dispatch_data_create(buffer, size, callback_queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                    dispatch_io_write(fd, 0, data, callback_queue, ^(bool done, dispatch_data_t data, int error) {
+                        if (error)
+                        {
+                            NSLog(@"error %u writing HTTP body", error);
+                            return;
+                        }
+                        
+                        if (!done)
+                            return;
+                        
+                        void (^readStream)(id) = k;
+                        readStream(k);
+                    });
+                } else {
                     dispatch_io_close(fd, 0);
+                    free(buffer);
                     
                     self.task = [self.session.backingSession uploadTaskWithRequest:self.request fromFile:[NSURL fileURLWithPath:path isDirectory:NO]];
                     [self _startTask];
-                    
-                });
-            }
+                }
+            };
+            readStream(readStream);
         } else {
             self.task = [self.session.backingSession dataTaskWithRequest:self.request];
             [self _startTask];
