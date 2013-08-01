@@ -85,19 +85,58 @@
 
     if (self.session)
     {
-        NSURLSessionTask *task;
+        
         if (self.session.isBackgroundSession)
-            task = [self.session.backingSession uploadTaskWithStreamedRequest:self.request];
-        else
-            task = [self.session.backingSession dataTaskWithRequest:self.request];
-        self.task = task;
-        [self.session registerTask:task forDelegate:self];
-        [task resume];
+        {
+            NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSProcessInfo processInfo].globallyUniqueString];
+            dispatch_io_t fd = dispatch_io_create_with_path(DISPATCH_IO_STREAM, [path fileSystemRepresentation], O_WRONLY, 0, NULL, NULL);
+            
+            NSInputStream *bodyStream = self.request.HTTPBodyStream;
+            dispatch_data_t data = NULL;
+            while ([bodyStream hasBytesAvailable])
+            {
+                uint8_t *buffer;
+                NSUInteger size;
+                if ([bodyStream getBuffer:&buffer length:&size])
+                {
+                    dispatch_data_t newData = dispatch_data_create(buffer, size, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                    if (data)
+                        data = dispatch_data_create_concat(data, newData);
+                    else
+                        data = newData;
+                }
+            }
+            
+            if (data)
+            {
+                dispatch_write(fd, data, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(dispatch_data_t data, int error) {
+                    if (data != NULL)
+                    {
+                        NSLog(@"error %u writing HTTP body", error);
+                        return;
+                    }
+                    
+                    self.task = [self.session.backingSession uploadTaskWithRequest:self.request fromFile:[NSURL fileURLWithPath:path isDirectory:NO]];
+                    [self _startTask];
+                    
+                });
+            }
+        }
+        else {
+            self.task = [self.session.backingSession dataTaskWithRequest:self.request];
+            [self _startTask];
+        }
     } else {
         self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
         [self.connection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.connection start];
     }
+}
+
+- (void)_startTask;
+{
+    [self.session registerTask:self.task forDelegate:self];
+    [self.task resume];
 }
 
 - (void)stopConnection
