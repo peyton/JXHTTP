@@ -7,6 +7,7 @@
     long long _bytesDownloaded;
     long long _bytesUploaded;
     BOOL _continuesInAppBackground;
+    NSURLResponse *_response;
 }
 
 @property (strong) NSURLConnection *connection;
@@ -35,7 +36,7 @@
         self.request = nil;
         self.response = nil;
         self.error = nil;
-
+        
         self.bytesDownloaded = 0LL;
         self.bytesUploaded = 0LL;
         
@@ -65,7 +66,7 @@
 - (void)willFinish
 {
     [super willFinish];
-
+    
     [self stopConnection];
 }
 
@@ -80,9 +81,9 @@
     
     if ([self isCancelled])
         return;
-
+    
     [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-
+    
     if (self.session)
     {
         if (self.session.isBackgroundSession)
@@ -159,7 +160,7 @@
         [self performSelector:@selector(stopConnection) onThread:[[self class] networkThread] withObject:nil waitUntilDone:YES];
         return;
     }
-
+    
     if (NSClassFromString(@"NSURLSession"))
     {
         [self.task cancel];
@@ -168,7 +169,7 @@
         [self.connection unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [self.connection cancel];
     }
-
+    
     [self.outputStream removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     [self.outputStream close];
 }
@@ -189,7 +190,7 @@
 + (void)runLoopForever
 {
     [[NSThread currentThread] setName:@"JXHTTP"];
-
+    
     while (YES) {
         @autoreleasepool {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
@@ -247,8 +248,6 @@
     
     self.response = urlResponse;
     
-    [self.outputStream open];
-    
     return YES;
 }
 
@@ -256,6 +255,9 @@
 {
     if ([self isCancelled])
         return;
+    
+    if (self.outputStream.streamStatus == NSStreamStatusNotOpen)
+        [self.outputStream open];
     
     if ([self.outputStream hasSpaceAvailable]) {
         NSInteger bytesWritten = [self.outputStream write:[data bytes] maxLength:[data length]];
@@ -326,7 +328,7 @@
     @synchronized(self)
     {
         if (self.session.isBackgroundSession)
-            return NO;
+            return YES;
         
         return _continuesInAppBackground;
     }
@@ -337,6 +339,25 @@
     @synchronized(self)
     {
         _continuesInAppBackground = continuesInAppBackground;
+    }
+}
+
+- (NSURLResponse *)response;
+{
+    @synchronized(self)
+    {
+        if (self.task.response)
+            return self.task.response;
+        
+        return _response;
+    }
+}
+
+- (void)setResponse:(NSURLResponse *)response;
+{
+    @synchronized(self)
+    {
+        _response = response;
     }
 }
 
