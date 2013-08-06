@@ -112,6 +112,8 @@
 
 @property (strong, readonly) NSURLSessionTask *task;
 
+@property (copy) NSString *taskDescription;
+
 /// @name Initialization
 
 /**
