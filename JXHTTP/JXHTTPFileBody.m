@@ -47,4 +47,10 @@
     return NSURLResponseUnknownLength;
 }
 
+- (void)writeToFile:(void (^)(NSString *))completion;
+{
+    if (completion)
+        completion(self.filePath);
+}
+
 @end

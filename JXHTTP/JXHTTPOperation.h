@@ -91,6 +91,8 @@ typedef NSURLRequest * (^JXHTTPRedirectBlock)(JXHTTPOperation *operation, NSURLR
  */
 @property (strong) id userObject;
 
+- (void)prepareToSend:(void (^)())completion;
+
 /// @name Security
 
 @property (strong, readonly) NSURLAuthenticationChallenge *authenticationChallenge;

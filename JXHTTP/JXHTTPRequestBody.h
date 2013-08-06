@@ -37,4 +37,6 @@
  */
 - (long long)httpContentLength;
 
+- (void)writeToFile:(void (^)(NSString *path))completion;
+
 @end

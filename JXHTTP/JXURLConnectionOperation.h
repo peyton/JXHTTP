@@ -114,9 +114,8 @@
 
 @property (copy) NSString *taskDescription;
 
-- (void)prepareToSend:(void (^)())completion;
-
 - (void)writeBody:(void (^)())completion;
+
 
 /// @name Initialization
 

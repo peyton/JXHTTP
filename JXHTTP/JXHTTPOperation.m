@@ -1,5 +1,6 @@
 #import "JXHTTPOperation.h"
 #import "JXURLEncoding.h"
+#import "JXURLSession.h"
 
 static NSUInteger JXHTTPOperationCount = 0;
 static NSTimer * JXHTTPActivityTimer = nil;
@@ -15,6 +16,7 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 @property (strong) NSDate *finishDate;
 @property (assign) dispatch_once_t incrementCountOnce;
 @property (assign) dispatch_once_t decrementCountOnce;
+@property (strong) NSURLSessionTask *task;
 #if OS_OBJECT_USE_OBJC
 @property (strong) dispatch_queue_t blockQueue;
 #else
@@ -228,6 +230,44 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
 #pragma mark - JXOperation
 
+- (void)_configureRequest;
+{
+    if ([[[self.request HTTPMethod] uppercaseString] isEqualToString:@"GET"])
+        [self.request setHTTPMethod:@"POST"];
+    
+    NSString *contentType = [self.requestBody httpContentType];
+    if (![contentType length])
+        contentType = @"application/octet-stream";
+    
+    if (![self.request valueForHTTPHeaderField:@"Content-Type"])
+        [self.request setValue:contentType forHTTPHeaderField:@"Content-Type"];
+    
+    if (![self.request valueForHTTPHeaderField:@"User-Agent"])
+        [self.request setValue:@"JXHTTP" forHTTPHeaderField:@"User-Agent"];
+    
+    long long expectedLength = [self.requestBody httpContentLength];
+    if (expectedLength > 0LL && expectedLength != NSURLResponseUnknownLength)
+        [self.request setValue:[[NSString alloc] initWithFormat:@"%lld", expectedLength] forHTTPHeaderField:@"Content-Length"];
+}
+
+- (void)prepareToSend:(void (^)())completion;
+{
+    if (self.requestBody && self.session.isBackgroundSession) {
+        [self _configureRequest];
+        
+        [self.requestBody writeToFile:^(NSString *path) {
+            self.task = [self.session.backingSession uploadTaskWithRequest:self.request fromFile:[NSURL fileURLWithPath:path isDirectory:NO]];
+            self.task.taskDescription = self.taskDescription;
+            
+            if (completion)
+                completion();
+        }];
+    } else {
+        if (completion)
+            completion();
+    }
+}
+
 - (void)main
 {
     if ([self isCancelled])
@@ -237,27 +277,12 @@ static NSTimeInterval JXHTTPActivityTimerInterval = 0.25;
 
     [self incrementOperationCount];
 
-    if (self.requestBody) {
+    if (self.requestBody && !self.session.isBackgroundSession) {
         NSInputStream *inputStream = [self.requestBody httpInputStream];
         if (inputStream)
             self.request.HTTPBodyStream = inputStream;
 
-        if ([[[self.request HTTPMethod] uppercaseString] isEqualToString:@"GET"])
-            [self.request setHTTPMethod:@"POST"];
-
-        NSString *contentType = [self.requestBody httpContentType];
-        if (![contentType length])
-            contentType = @"application/octet-stream";
-
-        if (![self.request valueForHTTPHeaderField:@"Content-Type"])
-            [self.request setValue:contentType forHTTPHeaderField:@"Content-Type"];
-
-        if (![self.request valueForHTTPHeaderField:@"User-Agent"])
-            [self.request setValue:@"JXHTTP" forHTTPHeaderField:@"User-Agent"];
-
-        long long expectedLength = [self.requestBody httpContentLength];
-        if (expectedLength > 0LL && expectedLength != NSURLResponseUnknownLength)
-            [self.request setValue:[[NSString alloc] initWithFormat:@"%lld", expectedLength] forHTTPHeaderField:@"Content-Length"];
+        [self _configureRequest];
     }
 
     self.startDate = [[NSDate alloc] init];
