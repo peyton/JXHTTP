@@ -18,7 +18,6 @@
 @property (strong) NSError *error;
 @property (assign) long long bytesDownloaded;
 @property (assign) long long bytesUploaded;
-@property (assign) BOOL shouldStartTask;
 
 @end
 
@@ -60,7 +59,15 @@
 
 #pragma mark - 
 
-- (void)writeBody;
+- (void)prepareToSend:(void (^)())completion;
+{
+    if (self.session.isBackgroundSession)
+        [self writeBody:completion];
+    else if (completion)
+        completion();
+}
+
+- (void)writeBody:(void (^)())completion;
 {
     // Write the request body to a file in preparation for uploading.
     dispatch_queue_t callback_queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
@@ -108,8 +115,8 @@
             
             self.task = [self.session.backingSession uploadTaskWithRequest:self.request fromFile:[NSURL fileURLWithPath:path isDirectory:NO]];
             self.task.taskDescription = self.taskDescription;
-            if (self.shouldStartTask)
-                [self _startTask];
+            if (completion)
+                completion();
         }
     };
     readStream(readStream);
@@ -150,12 +157,12 @@
     {
         if (self.session.isBackgroundSession)
         {
-            [self writeBody];
+            [self _startBackgroundTask];
         } else {
             self.task = [self.session.backingSession dataTaskWithRequest:self.request];
             self.task.taskDescription = self.taskDescription;
+            [self _startTask];
         }
-        [self _startTask];
     } else {
         self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
         [self.connection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
@@ -163,9 +170,20 @@
     }
 }
 
+- (void)_startBackgroundTask;
+{
+    if (!self.task)
+    {
+        [self writeBody:^{
+            [self _startTask];
+        }];
+    } else {
+        [self _startTask];
+    }
+}
+
 - (void)_startTask;
 {
-    self.shouldStartTask = YES;
     [self.session registerTask:self.task forDelegate:self];
     [self.task resume];
 }
