@@ -30,6 +30,7 @@
 /* Begin PBXFileReference section */
 		9CB4AEA417A983F200E5AD24 /* JXURLSession.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXURLSession.h; sourceTree = "<group>"; };
 		9CB4AEA517A983F200E5AD24 /* JXURLSession.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JXURLSession.m; sourceTree = "<group>"; };
+		9CCD4C4E17B1B296006AA3BB /* JXHTTPFunctions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JXHTTPFunctions.h; sourceTree = "<group>"; };
 		D04867A316EE75E000473908 /* JXHTTP.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXHTTP.h; sourceTree = "<group>"; };
 		D04867A416EE75E000473908 /* JXHTTPDataBody.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JXHTTPDataBody.h; sourceTree = "<group>"; };
 		D04867A516EE75E000473908 /* JXHTTPDataBody.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = JXHTTPDataBody.m; sourceTree = "<group>"; };
@@ -114,6 +115,7 @@
 				D04867BC16EE75E000473908 /* JXURLEncoding.m */,
 				9CB4AEA417A983F200E5AD24 /* JXURLSession.h */,
 				9CB4AEA517A983F200E5AD24 /* JXURLSession.m */,
+				9CCD4C4E17B1B296006AA3BB /* JXHTTPFunctions.h */,
 			);
 			name = JXHTTP;
 			path = ../../JXHTTP;

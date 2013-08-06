@@ -1,5 +1,6 @@
 #import "JXHTTPJSONBody.h"
 #import "JXHTTP.h"
+#import "JXHTTPFunctions.h"
 
 @interface JXHTTPJSONBody ()
 @property (strong, nonatomic) NSData *requestData;
@@ -51,6 +52,11 @@
 - (long long)httpContentLength
 {
     return [self.requestData length];
+}
+
+- (void)writeToFile:(void (^)(NSString *))completion;
+{
+    JXWriteDataToTempFile(self.requestData, completion);
 }
 
 #pragma mark - <JXHTTPOperationDelegate>

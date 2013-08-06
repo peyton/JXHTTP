@@ -1,5 +1,6 @@
 #import "JXHTTPFormEncodedBody.h"
 #import "JXURLEncoding.h"
+#import "JXHTTPFunctions.h"
 
 @interface JXHTTPFormEncodedBody ()
 @property (strong, nonatomic) NSMutableDictionary *dictionary;
@@ -52,6 +53,11 @@
 - (long long)httpContentLength
 {
     return [[self requestData] length];
+}
+
+- (void)writeToFile:(void (^)(NSString *))completion;
+{
+    JXWriteDataToTempFile(self.requestData, completion);
 }
 
 @end
